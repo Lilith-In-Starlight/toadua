@@ -198,7 +198,7 @@ export function parse_query(query_string: string): {
 	ordering: string | undefined;
 } {
 	let ordering: string | undefined;
-	const parts = query_string.split(/ /).map(a => {
+	let parts = query_string.split(/ /).map(a => {
 		const parts = a.split(/\|/).map(b => {
 			let negative;
 			let what;
@@ -236,8 +236,33 @@ export function parse_query(query_string: string): {
 		if (parts.length > 1) return ['or'].concat(parts);
 		else return parts[0];
 	});
+	parts = merge_anded_terms(parts);
 	let query;
 	if (parts.length > 1) query = ['and'].concat(parts);
 	else query = parts[0];
 	return { query, ordering };
+}
+
+function merge_anded_terms(node) {
+	if (!Array.isArray(node)) return node;
+
+	const [op, ...args] = node;
+	const merged_args = args.map(merge_anded_terms);
+
+	if (op !== 'and') return [op, ...merged_args];
+
+	const term_words = [];
+	const rest = [];
+
+	for (const arg of merged_args) {
+		if (Array.isArray(arg) && arg[0] === 'term') {
+			term_words.push(arg[1]);
+		} else {
+			rest.push(arg);
+		}
+	}
+
+	if (term_words.length === 0) return [op, ...rest];
+
+	return ['and', ['term', term_words.join(' ')], ...rest];
 }
